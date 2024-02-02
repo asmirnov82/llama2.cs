@@ -150,7 +150,6 @@ public static class Program
             }
         }
 
-
         // create and init the application RunState
         RunState state = InitializeRunState(config);
 
@@ -163,7 +162,6 @@ public static class Program
             BpeEncode(prompt, vocab, vocabScores, config.vocab_size, maxTokenLength, ref promptTokens,
                 ref numPromptTokens);
         }
-
 
         // start the main loop
         int token = 1; // init with token 1 (=BOS), as done in Llama-2 sentencepiece tokenizer
@@ -218,7 +216,7 @@ public static class Program
             token = next;
         }
 
-        timer.Start();
+        timer.Stop();
         Console.WriteLine();
 
         // report achieved tok/s (pos-1 because the timer starts after first iteration)
@@ -226,7 +224,6 @@ public static class Program
             Console.WriteLine(
                 $"achieved tok/s: {(pos - 1) / timer.Elapsed.Seconds}, tokens : {pos - 1} time : {timer.Elapsed}");
     }
-
 
     private static void BpeEncode(string text, string[] vocab, float[] vocabScores, int vocabSize, int maxTokenLength,
         ref int[] tokens, ref int nTokens)
@@ -287,8 +284,11 @@ public static class Program
 
             // merge the consecutive pair (bestIdx, bestIdx+1) into new token bestId
             tokens[bestIdx] = bestId;
+            
             // delete token at position bestIdx+1, shift the entire sequence back 1
-            for (int i = bestIdx + 1; i < nTokens - 1; i++) tokens[i] = tokens[i + 1];
+            for (int i = bestIdx + 1; i < nTokens - 1; i++)
+                tokens[i] = tokens[i + 1];
+
             nTokens--; // token length decreased
         }
     }
@@ -393,13 +393,16 @@ public static class Program
     {
         // calculate sum of squares
         float ss = 0.0f;
-        for (int j = 0; j < size; j++) ss += x[j] * x[j];
+        for (int j = 0; j < size; j++)
+            ss += x[j] * x[j];
+        
         ss /= size;
         ss += 1e-5f;
         ss = 1.0f / MathF.Sqrt(ss);
 
         // normalize and scale
-        for (int j = 0; j < size; j++) o[j] = weight[j] * (ss * x[j]);
+        for (int j = 0; j < size; j++)
+            o[j] = weight[j] * (ss * x[j]);
     }
 
     private static void Softmax(float[] x, int xOffset, int size)
@@ -409,6 +412,7 @@ public static class Program
         for (int i = 1; i < size; i++)
             if (x[i + xOffset] > maxVal)
                 maxVal = x[i + xOffset];
+
         // exp and sum
         float sum = 0.0f;
         for (int i = 0; i < size; i++)
@@ -418,7 +422,8 @@ public static class Program
         }
 
         // normalize
-        for (int i = 0; i < size; i++) x[i + xOffset] /= sum;
+        for (int i = 0; i < size; i++)
+            x[i + xOffset] /= sum;
     }
 
     private static void Matmul(float[] xout, float[] x, ArraySegment<float> w, int n, int d)
@@ -427,7 +432,9 @@ public static class Program
         Parallel.For(0, d, i =>
         {
             float val = 0.0f;
-            for (int j = 0; j < n; j++) val += w[i * n + j] * x[j];
+            for (int j = 0; j < n; j++)
+                val += w[i * n + j] * x[j];
+
             xout[i] = val;
         });
     }
@@ -442,7 +449,6 @@ public static class Program
 
         // copy the token embedding into x
         Array.Copy(w.token_embedding_table, token * dim, state.x, 0, dim);
-
 
         // forward all the layers
         for (int l = 0; l < config.n_layers; l++)
@@ -501,13 +507,13 @@ public static class Program
                     state.att[t + attOffset] = score;
                 }
 
-
                 // softmax the scores to get attention weights, from 0..pos inclusively
                 Softmax(state.att, attOffset, pos + 1);
 
                 // weighted sum of the values, store back into xb
                 int xbOffset = h * headSize;
-                for (int i = xbOffset; i < xbOffset + headSize; i++) state.xb[i] = 0f;
+                for (int i = xbOffset; i < xbOffset + headSize; i++)
+                    state.xb[i] = 0f;
 
                 for (int t = 0; t <= pos; t++)
                 {
@@ -522,8 +528,6 @@ public static class Program
                         state.xb[i + xbOffset] += a * state.value_cache[i + vOffset];
                 }
             });
-
-            ;
 
             // final matmul to get the output of the attention
             Matmul(state.xb2, state.xb, w.wo[(l * dim * dim)..], dim, dim);
