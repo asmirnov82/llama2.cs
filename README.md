@@ -1,4 +1,4 @@
-# Andrej Karpathy's llama2.c in one file of pure C#.
+# Andrej Karpathy's llama2.c in pure C#.
 [llama2.c](https://github.com/karpathy/llama2.c) is a very simple implementation
 to run inference of models with a [Llama2](https://arxiv.org/pdf/2302.13971.pdf)-like transformer-based LLM architecture.  
 

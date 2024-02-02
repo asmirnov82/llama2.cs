@@ -591,7 +591,6 @@ public static class Program
         return array;
     }
 
-
     private static RunState InitializeRunState(Config cfg)
     {
         return new RunState
@@ -610,86 +609,5 @@ public static class Program
             key_cache = new float[cfg.n_layers * cfg.seq_len * cfg.dim],
             value_cache = new float[cfg.n_layers * cfg.seq_len * cfg.dim]
         };
-    }
-
-
-    // Transformer and RunState structs, and related memory management
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Config
-    {
-        public int dim; // transformer dimension
-        public int hidden_dim; // for ffn layers
-        public int n_layers; // number of layers
-        public int n_heads; // number of query heads
-        public int n_kv_heads; // number of key/value heads (can be < query heads because of multiquery)
-        public int vocab_size; // vocabulary size, usually 256 (byte-level)
-        public int seq_len; // max sequence length
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct TransformerWeights
-    {
-        // token embedding table
-        public float[] token_embedding_table; // (vocab_size, dim)
-
-        // weights for rmsnorms
-        public ArraySegment<float> rms_att_weight; // (layer, dim) rmsnorm weights
-
-        public ArraySegment<float> rms_ffn_weight; // (layer, dim)
-
-        // weights for matmuls
-        public ArraySegment<float> wq; // (layer, dim, dim)
-        public ArraySegment<float> wk; // (layer, dim, dim)
-        public ArraySegment<float> wv; // (layer, dim, dim)
-
-        public ArraySegment<float> wo; // (layer, dim, dim)
-
-        // weights for ffn
-        public ArraySegment<float> w1; // (layer, hidden_dim, dim)
-        public ArraySegment<float> w2; // (layer, dim, hidden_dim)
-
-        public ArraySegment<float> w3; // (layer, hidden_dim, dim)
-
-        // final rmsnorm
-        public float[] rms_final_weight; // (dim,)
-
-        // freq_cis for RoPE relatively positional embeddings
-        public float[] freq_cis_real; // (seq_len, head_size/2)
-
-        public float[] freq_cis_imag; // (seq_len, head_size/2)
-
-        // (optional) classifier weights for the logits, on the last layer
-        public float[] wcls;
-    }
-
-    /// <summary>
-    ///     Used in top-p sampling
-    /// </summary>
-    private struct ProbIndex
-    {
-        public float Prob;
-        public int Index;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RunState
-    {
-        // current wave of activations
-        public float[] x; // activation at current time stamp (dim,)
-        public float[] xb; // same, but inside a residual branch (dim,)
-        public float[] xb2; // an additional buffer just for convenience (dim,)
-        public float[] hb; // buffer for hidden dimension in the ffn (hidden_dim,)
-        public float[] hb2; // buffer for hidden dimension in the ffn (hidden_dim,)
-        public float[] q; // query (dim,)
-        public float[] k; // key (dim,)
-        public float[] v; // value (dim,)
-        public float[] att; // buffer for scores/attention values (n_heads, seq_len)
-        public float[] logits; // output logits
-
-        public ProbIndex[] probindex; // buffer used in top-p sampling
-
-        // kv cache
-        public float[] key_cache; // (layer, seq_len, dim)
-        public float[] value_cache; // (layer, seq_len, dim)
     }
 }
