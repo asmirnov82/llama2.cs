@@ -192,9 +192,12 @@ public static class Program
                 else
                 {
                     // apply the temperature to the logits
-                    for (int q = 0; q < config.vocab_size; q++) state.logits[q] /= temperature;
+                    for (int q = 0; q < config.vocab_size; q++)
+                        state.logits[q] /= temperature;
+                    
                     // apply softmax to the logits to get the probabilities for next token
-                    Softmax(state.logits, 0, config.vocab_size);
+                    Softmax(state.logits, config.vocab_size);
+                    
                     // we sample from this distribution to get the next token
                     if (topp <= 0)
                         // simply sample from the predicted probability distribution
@@ -389,7 +392,7 @@ public static class Program
         for (int i = 0; i < size; i++) a[i] += b[i];
     }
 
-    private static void Rmsnorm(float[] o, float[] x, ArraySegment<float> weight, int size)
+    private static void Rmsnorm(float[] o, float[] x, Span<float> weight, int size)
     {
         // calculate sum of squares
         float ss = 0.0f;
@@ -405,25 +408,25 @@ public static class Program
             o[j] = weight[j] * (ss * x[j]);
     }
 
-    private static void Softmax(float[] x, int xOffset, int size)
+    private static void Softmax(Span<float> x, int size)
     {
         // find max value (for numerical stability)
-        float maxVal = x[0 + xOffset];
+        float maxVal = x[0];
         for (int i = 1; i < size; i++)
-            if (x[i + xOffset] > maxVal)
-                maxVal = x[i + xOffset];
+            if (x[i] > maxVal)
+                maxVal = x[i];
 
         // exp and sum
         float sum = 0.0f;
         for (int i = 0; i < size; i++)
         {
-            x[i + xOffset] = (float) Math.Exp(x[i + xOffset] - maxVal);
-            sum += x[i + xOffset];
+            x[i] = (float) Math.Exp(x[i] - maxVal);
+            sum += x[i];
         }
 
         // normalize
         for (int i = 0; i < size; i++)
-            x[i + xOffset] /= sum;
+            x[i] /= sum;
     }
 
     private static void Matmul(float[] xout, float[] x, ArraySegment<float> w, int n, int d)
@@ -487,8 +490,8 @@ public static class Program
                 // get the query vector for this head
                 int qOffset = h * headSize;
 
-                // attention scores for this head
-                int attOffset = h * config.seq_len;
+                // get attention scores for this head
+                Span<float> att = new Span<float>(state.att)[(h * config.seq_len)..];
 
                 // iterate over all timesteps, including the current one
                 for (int t = 0; t <= pos; t++)
@@ -504,11 +507,11 @@ public static class Program
                     score /= (float) Math.Sqrt(headSize);
 
                     // save the score to the attention buffer
-                    state.att[t + attOffset] = score;
+                    att[t] = score;
                 }
 
                 // softmax the scores to get attention weights, from 0..pos inclusively
-                Softmax(state.att, attOffset, pos + 1);
+                Softmax(att, pos + 1);
 
                 // weighted sum of the values, store back into xb
                 int xbOffset = h * headSize;
@@ -521,7 +524,7 @@ public static class Program
                     int vOffset = loff + t * dim + h * headSize;
 
                     // get the attention weight for this timestep
-                    float a = state.att[t + attOffset];
+                    float a = att[t];
 
                     // accumulate the weighted value into xb
                     for (int i = 0; i < headSize; i++)
@@ -548,7 +551,8 @@ public static class Program
                 state.hb[i] *= (1.0f / (1.0f + (float) Math.Exp(-state.hb[i])));
 
             // elementwise multiply with w3(x)
-            for (int i = 0; i < hiddenDim; i++) state.hb[i] *= state.hb2[i];
+            for (int i = 0; i < hiddenDim; i++)
+                state.hb[i] *= state.hb2[i];
 
             // final matmul to get the output of the ffn
             Matmul(state.xb, state.hb, w.w2[(l * dim * hiddenDim)..], hiddenDim, dim);
