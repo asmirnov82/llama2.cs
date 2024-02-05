@@ -198,7 +198,7 @@ public static class Program
                         state.logits[q] /= temperature;
 
                     // apply softmax to the logits to get the probabilities for next token
-                    Softmax(state.logits.AsSpan()[..config.vocab_size]);
+                    Softmax(state.logits.AsSpan(0, config.vocab_size));
                     
                     // we sample from this distribution to get the next token
                     if (topp <= 0)
@@ -391,15 +391,14 @@ public static class Program
 
     private static void Accum(float[] a, float[] b, int size)
     {
-        for (int i = 0; i < size; i++) a[i] += b[i];
+        for (int i = 0; i < size; i++)
+            a[i] += b[i];
     }
 
     private static void Rmsnorm(float[] o, float[] x, Span<float> weight, int size)
     {
         // calculate sum of squares
-        float ss = 0.0f;
-        for (int j = 0; j < size; j++)
-            ss += x[j] * x[j];
+        float ss = TensorPrimitives.SumOfSquares(x.AsSpan(0, size));
         
         ss /= size;
         ss += 1e-5f;
@@ -432,7 +431,7 @@ public static class Program
         // W (d,n) @ x (n,) . xout (d,)
         Parallel.For(0, d, i =>
         {
-            xout[i] = TensorPrimitives.Dot(w.AsSpan().Slice(i * n, n), x);
+            xout[i] = TensorPrimitives.Dot(w.AsSpan(i * n, n), x);
         });
     }
 
