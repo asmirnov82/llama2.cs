@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Drawing;
 using System.IO.MemoryMappedFiles;
+using System.Numerics.Tensors;
 using System.Runtime.InteropServices;
 using System.Text;
 #pragma warning disable CA2014
@@ -194,9 +196,9 @@ public static class Program
                     // apply the temperature to the logits
                     for (int q = 0; q < config.vocab_size; q++)
                         state.logits[q] /= temperature;
-                    
+
                     // apply softmax to the logits to get the probabilities for next token
-                    Softmax(state.logits, config.vocab_size);
+                    Softmax(state.logits.AsSpan()[..config.vocab_size]);
                     
                     // we sample from this distribution to get the next token
                     if (topp <= 0)
@@ -408,25 +410,21 @@ public static class Program
             o[j] = weight[j] * (ss * x[j]);
     }
 
-    private static void Softmax(Span<float> x, int size)
+    private static void Softmax(Span<float> x)
     {
         // find max value (for numerical stability)
-        float maxVal = x[0];
-        for (int i = 1; i < size; i++)
-            if (x[i] > maxVal)
-                maxVal = x[i];
-
+        float maxVal = TensorPrimitives.Max(x);
+        
         // exp and sum
         float sum = 0.0f;
-        for (int i = 0; i < size; i++)
+        for (int i = 0; i < x.Length; i++)
         {
-            x[i] = (float) Math.Exp(x[i] - maxVal);
+            x[i] = MathF.Exp(x[i] - maxVal);
             sum += x[i];
         }
 
         // normalize
-        for (int i = 0; i < size; i++)
-            x[i] /= sum;
+        TensorPrimitives.Divide(x, sum, x);
     }
 
     private static void Matmul(float[] xout, float[] x, ArraySegment<float> w, int n, int d)
@@ -434,11 +432,7 @@ public static class Program
         // W (d,n) @ x (n,) . xout (d,)
         Parallel.For(0, d, i =>
         {
-            float val = 0.0f;
-            for (int j = 0; j < n; j++)
-                val += w[i * n + j] * x[j];
-
-            xout[i] = val;
+            xout[i] = TensorPrimitives.Dot(w.AsSpan().Slice(i * n, n), x);
         });
     }
 
@@ -511,7 +505,7 @@ public static class Program
                 }
 
                 // softmax the scores to get attention weights, from 0..pos inclusively
-                Softmax(att, pos + 1);
+                Softmax(att[..(pos + 1)]);
 
                 // weighted sum of the values, store back into xb
                 int xbOffset = h * headSize;
